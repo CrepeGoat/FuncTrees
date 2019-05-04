@@ -43,37 +43,41 @@ class AggregationTree:
         indices[level_length:] = np.arange(self._parent(level_stop), level_start)
         self._leaf_indices = indices
 
-    def _root_path_indices(self, leaf):
+    def _root_path_factory(make_ufunc):
+        ufunc, dtype = make_ufunc()
+
+        def wrapper(self, leaf, maxlevels=None):
+            no_of_levels = int(leaf).bit_length()
+            if maxlevels is not None:
+                no_of_levels = min(no_of_levels, maxlevels)
+            indices = np.ones(no_of_levels, dtype=self.index_dtype)
+            indices[0] = leaf
+
+            if dtype is None:
+                return ufunc.accumulate(indices)
+            else:
+                return ufunc.accumulate(indices, dtype=dtype).astype(self.index_dtype)
+
+        return wrapper
+
+    @_root_path_factory
+    def _root_path_indices():
         """ Returns the indices in `arraytree` corresponding to the ancestors
             of the item at the given leaf index.
         """
-        no_of_levels = int(leaf).bit_length()
-        indices = np.ones(no_of_levels, dtype=self.index_dtype)
-        indices[0] = leaf
+        return np.right_shift, None
 
-        return np.right_shift.accumulate(indices)
-
-    def _left_root_path_indices(self, leaf):
-        no_of_levels = int(leaf).bit_length()
-        indices = np.empty(no_of_levels, dtype=self.index_dtype)
-        indices[0] = leaf
-
+    @_root_path_factory
+    def _left_root_path_indices():
         def move_up(leaf, _):  # `_` is a stub to use accumulate
             return np.right_shift(np.subtract(leaf, 1), 1)
-        move_up = np.frompyfunc(move_up, 2, 1)
+        return np.frompyfunc(move_up, 2, 1), np.object
 
-        return move_up.accumulate(indices, dtype=np.object).astype(self.index_dtype)
-
-    def _right_root_path_indices(self, leaf):
-        no_of_levels = int(leaf).bit_length()
-        indices = np.ones(no_of_levels, dtype=self.index_dtype)
-        indices[0] = leaf
-
+    @_root_path_factory
+    def _right_root_path_indices():
         def move_up(leaf, _):  # `_` is a stub to use accumulate
             return np.right_shift(np.add(leaf, 1), 1)
-        move_up = np.frompyfunc(move_up, 2, 1)
-
-        return move_up.accumulate(indices, dtype=np.object).astype(self.index_dtype)
+        return np.frompyfunc(move_up, 2, 1), np.object
 
     def __len__(self):
         return len(self._arraytree) // 2
@@ -100,6 +104,7 @@ class AggregationTree:
         if left_index >= right_index:
             return result
 
+        maxlevels = int(right_index - left_index).bit_length()
         right_index -= 1  # make indices inclusive
         left_leaf, right_leaf = self._leaf_indices[[left_index, right_index]]
 
@@ -111,8 +116,8 @@ class AggregationTree:
             else:
                 left_leaf = self._parent(left_leaf)
 
-        left_path = self._right_root_path_indices(left_leaf)
-        right_path = self._left_root_path_indices(right_leaf)
+        left_path = self._right_root_path_indices(left_leaf, maxlevels)
+        right_path = self._left_root_path_indices(right_leaf, maxlevels)
 
         #print(left_path)
         #print(right_path)
