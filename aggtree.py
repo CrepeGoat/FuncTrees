@@ -1,3 +1,5 @@
+import functools
+
 import numpy as np
 
 
@@ -46,6 +48,7 @@ class AggregationTree:
     def _root_path_factory(make_ufunc):
         ufunc, dtype = make_ufunc()
 
+        @functools.wraps(make_ufunc)
         def wrapper(self, leaf, maxlevels=None):
             no_of_levels = int(leaf).bit_length()
             if maxlevels is not None:
