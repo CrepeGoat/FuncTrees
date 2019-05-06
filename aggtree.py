@@ -51,17 +51,22 @@ class AggregationArray:
 
         @functools.wraps(make_ufunc)
         def wrapper(self, leaf, maxlevels=None):
-            no_of_levels = int(leaf).bit_length()
+            # TODO make array case more efficient
+            # - currently O(k*log(k)))?, can be O(k)
+            no_of_levels = int(len(self._arraytree)-1).bit_length()
             if maxlevels is not None:
                 no_of_levels = min(no_of_levels, maxlevels)
-            indices = np.ones(no_of_levels, dtype=self.index_dtype)
+
+            leaf = np.asarray(leaf)
+            indices = np.ones((no_of_levels,) + leaf.shape,
+                              dtype=self.index_dtype)
             indices[0] = leaf
 
             if dtype is None:
-                return ufunc.accumulate(indices)
+                return ufunc.accumulate(indices, axis=0)
             else:
                 return (ufunc
-                        .accumulate(indices, dtype=dtype)
+                        .accumulate(indices, axis=0, dtype=dtype)
                         .astype(self.index_dtype))
 
         return wrapper
@@ -92,12 +97,14 @@ class AggregationArray:
         return self._arraytree[self._leaf_indices[index]]
 
     def __setitem__(self, index, value):
-        if isinstance(index, slice):  # TODO allow slices
-            raise NotImplementedError
-
         leaf = self._leaf_indices[index]
         self._arraytree[leaf] = value
-        for i in self._root_path_indices(leaf)[1:]:
+
+        nodes = np.unique(self._root_path_indices(leaf)[1:])[::-1]
+        if nodes[-1] == 0:
+            nodes = nodes[:-1]
+
+        for i in nodes:
             self._arraytree[i] = self._agg_func([
                 self._arraytree[self._lchild(i)],
                 self._arraytree[self._rchild(i)],
