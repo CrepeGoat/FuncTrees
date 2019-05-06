@@ -24,6 +24,10 @@ class AggregationArray:
     def _is_rchild(index):
         return np.bitwise_and(index, 1) == 1
 
+    @staticmethod
+    def _node_level(index):
+        return int(index).bit_length()
+
     def __init__(self, length, dtype, agg_func, agg_identity=None):
         self._agg_func = agg_func
         if agg_identity is not None:
@@ -37,7 +41,7 @@ class AggregationArray:
         self._make_leaf_indices()
 
     def _make_leaf_indices(self):
-        level_start = 1 << (int(len(self._arraytree)-1).bit_length()-1)
+        level_start = 1 << (self._node_level(len(self._arraytree)-1)-1)
         level_stop = len(self._arraytree)
         level_length = level_stop - level_start
 
@@ -53,7 +57,7 @@ class AggregationArray:
         def wrapper(self, leaf, maxlevels=None):
             # TODO make array case more efficient
             # - currently O(k*log(k)))?, can be O(k)
-            no_of_levels = int(len(self._arraytree)-1).bit_length()
+            no_of_levels = self._node_level(len(self._arraytree)-1)
             if maxlevels is not None:
                 no_of_levels = min(no_of_levels, maxlevels)
 
@@ -115,7 +119,7 @@ class AggregationArray:
         if left_index >= right_index:
             return result
 
-        maxlevels = int(right_index - left_index).bit_length()
+        maxlevels = self._node_level(right_index - left_index)
         right_index -= 1  # make indices inclusive
         left_leaf, right_leaf = self._leaf_indices[[left_index, right_index]]
 
