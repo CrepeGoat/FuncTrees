@@ -6,15 +6,15 @@ import numpy as np
 
 
 def test_AggregationTree_make_leaf_indices():
-    aggtree = mock.Mock(spec=AggregationTree)
+    aggtree = mock.Mock(spec=AggregationArray)
     aggtree.configure_mock(
         _arraytree=np.empty(34),
         __len__=lambda self: 17,
         index_dtype=np.int64,
-        _parent=AggregationTree._parent,
+        _parent=AggregationArray._parent,
     )
 
-    AggregationTree._make_leaf_indices(aggtree)
+    AggregationArray._make_leaf_indices(aggtree)
 
     assert aggtree._leaf_indices[0] == 32
     assert aggtree._leaf_indices[1] == 33
@@ -24,28 +24,28 @@ def test_AggregationTree_make_leaf_indices():
 
 @pytest.mark.skip("unimplemented")
 def test_AggregationTree_init():
-    aggtree = mock.Mock(spec=AggregationTree)
-    AggregationTree.__init__(aggtree, length=17, dtype=np.float64,
+    aggtree = mock.Mock(spec=AggregationArray)
+    AggregationArray.__init__(aggtree, length=17, dtype=np.float64,
                              agg_func=np.add)
     pass
 
 
 def test_AggregationTree_root_path_indices():
-    aggtree = mock.Mock(spec=AggregationTree)
+    aggtree = mock.Mock(spec=AggregationArray)
     aggtree.configure_mock(
         index_dtype=np.int64,
     )
 
-    assert (AggregationTree._root_path_indices(aggtree, 5)
+    assert (AggregationArray._root_path_indices(aggtree, 5)
             == np.array([5, 2, 1])).all()
-    assert (AggregationTree._root_path_indices(aggtree, 6)
+    assert (AggregationArray._root_path_indices(aggtree, 6)
             == np.array([6, 3, 1])).all()
-    assert (AggregationTree._root_path_indices(aggtree, 14)
+    assert (AggregationArray._root_path_indices(aggtree, 14)
             == np.array([14, 7, 3, 1])).all()
 
 
 def test_AggregationTree_all():
-    a = AggregationTree(13, np.float, np.sum, 0)
+    a = AggregationArray(13, np.float, np.sum, 0)
     assert np.all(a[:] == 0)
     assert len(a) == 13
 

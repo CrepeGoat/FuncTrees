@@ -3,7 +3,7 @@ import functools
 import numpy as np
 
 
-class AggregationTree:
+class AggregationArray:
     @staticmethod
     def _parent(index):
         return index >> 1
@@ -25,13 +25,14 @@ class AggregationTree:
         return np.bitwise_and(index, 1) == 1
 
     def __init__(self, length, dtype, agg_func, agg_identity=None):
-        array_len = 2*length  # 0th element unused
         self._agg_func = agg_func
         if agg_identity is not None:
             self._agg_func.identity = agg_identity
+
+        array_len = 2*length  # 0th element unused
         self._arraytree = np.full((array_len,), agg_func.identity,
                                   dtype=np.dtype(dtype))
-        self.index_dtype = np.int64 if length >= 2**32 else np.int32
+        self.index_dtype = np.int64
 
         self._make_leaf_indices()
 
@@ -59,7 +60,9 @@ class AggregationTree:
             if dtype is None:
                 return ufunc.accumulate(indices)
             else:
-                return ufunc.accumulate(indices, dtype=dtype).astype(self.index_dtype)
+                return (ufunc
+                        .accumulate(indices, dtype=dtype)
+                        .astype(self.index_dtype))
 
         return wrapper
 
@@ -101,8 +104,6 @@ class AggregationTree:
             ])
 
     def aggregate(self, left_index, right_index):
-        print("left index:", left_index)
-        print("right index:", right_index)
         result = self._agg_func.identity
         if left_index >= right_index:
             return result
@@ -122,31 +123,19 @@ class AggregationTree:
         left_path = self._right_root_path_indices(left_leaf, maxlevels)
         right_path = self._left_root_path_indices(right_leaf, maxlevels)
 
-        #print(left_path)
-        #print(right_path)
-
         last_level = np.flatnonzero(left_path >= right_path)[0]
         if left_path[last_level] == right_path[last_level]:
             last_level += 1
         left_path = left_path[:last_level]
         right_path = right_path[:last_level]
 
-        #print(left_path)
-        #print(right_path)
-
         left_nodes = left_path[self._is_rchild(left_path)]
         right_nodes = right_path[self._is_lchild(right_path)]
 
-        #print(left_nodes)
-        #print(right_nodes)
+        elements = [result]
+        if len(left_nodes):
+            elements.append(self._agg_func(self._arraytree[left_nodes]))
+        if len(right_nodes):
+            elements.append(self._agg_func(self._arraytree[right_nodes]))
 
-        #print(self._arraytree[left_nodes])
-        #print(self._arraytree[right_nodes])
-
-        return self._agg_func([
-            [result]
-            + ([self._agg_func(self._arraytree[left_nodes])]
-               if len(left_nodes) else [])
-            + ([self._agg_func(self._arraytree[right_nodes])]
-               if len(right_nodes) else [])
-        ])
+        return self._agg_func(elements)
